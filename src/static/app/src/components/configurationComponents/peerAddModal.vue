@@ -13,26 +13,30 @@ import BulkAdd from "@/components/configurationComponents/newPeersComponents/bul
 import PresharedKeyInput from "@/components/configurationComponents/newPeersComponents/presharedKeyInput.vue";
 import MtuInput from "@/components/configurationComponents/newPeersComponents/mtuInput.vue";
 import PersistentKeepAliveInput
-	from "@/components/configurationComponents/newPeersComponents/persistentKeepAliveInput.vue";
+        from "@/components/configurationComponents/newPeersComponents/persistentKeepAliveInput.vue";
 import {WireguardConfigurationsStore} from "@/stores/WireguardConfigurationsStore.js";
+import VueDatePicker from "@vuepic/vue-datepicker";
+import dayjs from "dayjs";
 
 const dashboardStore = DashboardConfigurationStore()
 const wireguardStore = WireguardConfigurationsStore()
 const peerData = ref({
-	bulkAdd: false,
-	bulkAddAmount: 0,
-	name: "",
-	allowed_ips: [],
-	private_key: "",
-	public_key: "",
-	DNS: dashboardStore.Configuration.Peers.peer_global_dns,
-	endpoint_allowed_ip: dashboardStore.Configuration.Peers.peer_endpoint_allowed_ip,
-	keepalive: parseInt(dashboardStore.Configuration.Peers.peer_keep_alive),
-	mtu: parseInt(dashboardStore.Configuration.Peers.peer_mtu),
-	preshared_key: "",
-	preshared_key_bulkAdd: false,
-	advanced_security: "off",
-	allowed_ips_validation: true,
+        bulkAdd: false,
+        bulkAddAmount: 0,
+        name: "",
+        allowed_ips: [],
+        private_key: "",
+        public_key: "",
+        DNS: dashboardStore.Configuration.Peers.peer_global_dns,
+        endpoint_allowed_ip: dashboardStore.Configuration.Peers.peer_endpoint_allowed_ip,
+        keepalive: parseInt(dashboardStore.Configuration.Peers.peer_keep_alive),
+        mtu: parseInt(dashboardStore.Configuration.Peers.peer_mtu),
+        preshared_key: "",
+        preshared_key_bulkAdd: false,
+        advanced_security: "off",
+        allowed_ips_validation: true,
+        expire_time: undefined,
+        data_limit: 0,
 })
 const availableIp = ref([])
 const saving = ref(false)
@@ -77,6 +81,14 @@ const peerCreate = () => {
 		}
 		saving.value = false;
 	})
+}
+
+const parseTime = (modelData) => {
+        if (modelData){
+                peerData.value.expire_time = dayjs(modelData).format("YYYY-MM-DD HH:mm:ss")
+        }else{
+                peerData.value.expire_time = undefined
+        }
 }
 
 watch(() => {
@@ -132,11 +144,11 @@ watch(() => {
 												<div class="col-sm">
 													<MtuInput :saving="saving" :data="peerData"></MtuInput>
 												</div>
-												<div class="col-sm">
-													<PersistentKeepAliveInput :saving="saving" :data="peerData"></PersistentKeepAliveInput>
-												</div>
-												<div class="col-12" v-if="peerData.bulkAdd">
-													<div class="form-check form-switch">
+                                                                                                <div class="col-sm">
+                                                                                                        <PersistentKeepAliveInput :saving="saving" :data="peerData"></PersistentKeepAliveInput>
+                                                                                                </div>
+                                                                                                <div class="col-12" v-if="peerData.bulkAdd">
+                                                                                                        <div class="form-check form-switch">
 														<input class="form-check-input" type="checkbox" role="switch"
 														       v-model="peerData.preshared_key_bulkAdd"
 														       id="bullAdd_PresharedKey_Switch" checked>
@@ -145,14 +157,47 @@ watch(() => {
 																<LocaleText t="Pre-Shared Key"></LocaleText> <LocaleText t="Enabled" v-if="peerData.preshared_key_bulkAdd"></LocaleText><LocaleText t="Disabled" v-else></LocaleText>
 															</small>
 														</label>
-													</div>
-												</div>
-											</div>
-										</div>
-										
-									</div>
-								</div>
-							</div>
+                                                                                                        </div>
+                                                                                                </div>
+                                                                                        </div>
+                                                                                        <div class="row gy-3 mt-1">
+                                                                                                <div class="col-sm">
+                                                                                                        <label for="peer_data_limit" class="form-label">
+                                                                                                                <small class="text-muted">
+                                                                                                                        <LocaleText t="Data Limit (GB)"></LocaleText>
+                                                                                                                </small>
+                                                                                                        </label>
+                                                                                                        <input type="number" min="0" step="0.01"
+                                                                                                               class="form-control form-control-sm rounded-3"
+                                                                                                               :disabled="saving"
+                                                                                                               v-model.number="peerData.data_limit"
+                                                                                                               id="peer_data_limit">
+                                                                                                </div>
+                                                                                                <div class="col-sm">
+                                                                                                        <label for="peer_expire_time" class="form-label">
+                                                                                                                <small class="text-muted">
+                                                                                                                        <LocaleText t="Expire Time"></LocaleText>
+                                                                                                                </small>
+                                                                                                        </label>
+                                                                                                        <VueDatePicker
+                                                                                                                :is24="true"
+                                                                                                                :min-date="new Date()"
+                                                                                                                :model-value="peerData.expire_time"
+                                                                                                                @update:model-value="parseTime"
+                                                                                                                time-picker-inline
+                                                                                                                format="yyyy-MM-dd HH:mm:ss"
+                                                                                                                preview-format="yyyy-MM-dd HH:mm:ss"
+                                                                                                                :dark="dashboardStore.Configuration.Server.dashboard_theme === 'dark'"
+                                                                                                                :disabled="saving"
+                                                                                                                id="peer_expire_time"
+                                                                                                        />
+                                                                                                </div>
+                                                                                        </div>
+                                                                                </div>
+
+                                                                        </div>
+                                                                </div>
+                                                        </div>
 							
 							
 						</div>
