@@ -2,10 +2,12 @@
 import {fetchPost} from "@/utilities/fetch.js";
 import {DashboardConfigurationStore} from "@/stores/DashboardConfigurationStore.js";
 import LocaleText from "@/components/text/localeText.vue";
+import VueDatePicker from "@vuepic/vue-datepicker";
+import dayjs from "dayjs";
 
 export default {
 	name: "peerSettings",
-	components: {LocaleText},
+        components: {LocaleText, VueDatePicker},
 	props: {
 		selectedPeer: Object
 	},
@@ -21,41 +23,61 @@ export default {
 		const dashboardConfigurationStore = DashboardConfigurationStore();
 		return {dashboardConfigurationStore}
 	},
-	methods: {
-		reset(){
-			if (this.selectedPeer){
-				this.data = JSON.parse(JSON.stringify(this.selectedPeer))
-				this.dataChanged = false;
-			}
-		},
-		savePeer(){
-			this.saving = true;
-			fetchPost(`/api/updatePeerSettings/${this.$route.params.id}`, this.data, (res) => {
-				this.saving = false;
-				if (res.status){
-					this.dashboardConfigurationStore.newMessage("Server", "Peer saved", "success")
-				}else{
-					this.dashboardConfigurationStore.newMessage("Server", res.message, "danger")
-				}
-				this.$emit("refresh")
-			})
-		},
-		resetPeerData(type){
-			this.saving = true
-			fetchPost(`/api/resetPeerData/${this.$route.params.id}`, {
-				id: this.data.id,
-				type: type
-			}, (res) => {
+        methods: {
+                reset(){
+                        if (this.selectedPeer){
+                                this.data = JSON.parse(JSON.stringify(this.selectedPeer))
+                                this.dataChanged = false;
+                        }
+                },
+                savePeer(){
+                        this.saving = true;
+                        fetchPost(`/api/updatePeerSettings/${this.$route.params.id}`, this.data, (res) => {
+                                if (res.status){
+                                        fetchPost(`/api/updatePeerLimit/${this.$route.params.id}`, {
+                                                id: this.data.id,
+                                                expire_time: this.data.expire_time,
+                                                data_limit: this.data.data_limit
+                                        }, (res2) => {
+                                                this.saving = false;
+                                                if (res2.status){
+                                                        this.dashboardConfigurationStore.newMessage("Server", "Peer saved", "success")
+                                                }else{
+                                                        this.dashboardConfigurationStore.newMessage("Server", res2.message, "danger")
+                                                }
+                                                this.$emit("refresh")
+                                        })
+                                }else{
+                                        this.saving = false;
+                                        this.dashboardConfigurationStore.newMessage("Server", res.message, "danger")
+                                        this.$emit("refresh")
+                                }
+                        })
+                },
+                resetPeerData(type){
+                        this.saving = true
+                        fetchPost(`/api/resetPeerData/${this.$route.params.id}`, {
+                                id: this.data.id,
+                                type: type
+                        }, (res) => {
 				this.saving = false;
 				if (res.status){
 					this.dashboardConfigurationStore.newMessage("Server", "Peer data usage reset successfully", "success")
 				}else{
 					this.dashboardConfigurationStore.newMessage("Server", res.message, "danger")
 				}
-				this.$emit("refresh")
-			})
-		}
-	},
+                                this.$emit("refresh")
+                        })
+                },
+                parseTime(modelData){
+                        if(modelData){
+                                this.data.expire_time = dayjs(modelData).format("YYYY-MM-DD HH:mm:ss");
+                        }else{
+                                this.data.expire_time = undefined;
+                        }
+                        this.dataChanged = true;
+                }
+        },
 	beforeMount() {
 		this.reset();
 	},
@@ -187,22 +209,52 @@ export default {
 												       v-model="this.data.mtu"
 												       id="peer_mtu">
 											</div>
-											<div>
-												<label for="peer_keep_alive" class="form-label">
-													<small class="text-muted">
-														<LocaleText t="Persistent Keepalive"></LocaleText>
-													</small>
-												</label>
-												<input type="number" class="form-control form-control-sm rounded-3"
-												       :disabled="this.saving"
-												       v-model="this.data.keepalive"
-												       id="peer_keep_alive">
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-							<div class="d-flex align-items-center gap-2">
+                                                                                        <div>
+                                                                                                <label for="peer_keep_alive" class="form-label">
+                                                                                                        <small class="text-muted">
+                                                                                                                <LocaleText t="Persistent Keepalive"></LocaleText>
+                                                                                                        </small>
+                                                                                                </label>
+                                                                                                <input type="number" class="form-control form-control-sm rounded-3"
+                                                                                                       :disabled="this.saving"
+                                                                                                       v-model="this.data.keepalive"
+                                                                                                       id="peer_keep_alive">
+                                                                                        </div>
+                                                                                        <div>
+                                                                                                <label for="peer_data_limit" class="form-label">
+                                                                                                        <small class="text-muted">
+                                                                                                                <LocaleText t="Data Limit (GB)"></LocaleText>
+                                                                                                        </small>
+                                                                                                </label>
+                                                                                                <input type="number" min="0" step="0.01" class="form-control form-control-sm rounded-3"
+                                                                                                       :disabled="this.saving"
+                                                                                                       v-model.number="this.data.data_limit"
+                                                                                                       id="peer_data_limit">
+                                                                                        </div>
+                                                                                        <div>
+                                                                                                <label for="peer_expire_time" class="form-label">
+                                                                                                        <small class="text-muted">
+                                                                                                                <LocaleText t="Expire Time"></LocaleText>
+                                                                                                        </small>
+                                                                                                </label>
+                                                                                                <VueDatePicker
+                                                                                                        :is24="true"
+                                                                                                        :min-date="new Date()"
+                                                                                                        :model-value="this.data.expire_time"
+                                                                                                        @update:model-value="this.parseTime"
+                                                                                                        time-picker-inline
+                                                                                                        format="yyyy-MM-dd HH:mm:ss"
+                                                                                                        preview-format="yyyy-MM-dd HH:mm:ss"
+                                                                                                        :dark="this.dashboardConfigurationStore.Configuration.Server.dashboard_theme === 'dark'"
+                                                                                                        :disabled="this.saving"
+                                                                                                        id="peer_expire_time"
+                                                                                                />
+                                                                                        </div>
+                                                                                </div>
+                                                                        </div>
+                                                                </div>
+                                                        </div>
+                                                        <div class="d-flex align-items-center gap-2">
 								<button class="btn bg-secondary-subtle border-secondary-subtle text-secondary-emphasis rounded-3 shadow ms-auto px-3 py-2"
 								        @click="this.reset()"
 								        :disabled="!this.dataChanged || this.saving">
