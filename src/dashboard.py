@@ -490,30 +490,44 @@ class WireguardConfiguration:
             sqlUpdate(
                 """
                 CREATE TABLE '%s'(
-                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL, 
-                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL, 
-                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL, 
-                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL, 
-                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL, 
+                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL,
+                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL,
+                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL,
+                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL,
+                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL,
                     keepalive INT NULL, remote_endpoint VARCHAR NULL, preshared_key VARCHAR NULL,
+                    expire_time DATETIME NULL, data_limit FLOAT NULL,
                     PRIMARY KEY (id)
                 )
                 """ % dbName
             )
+        else:
+            columns = [t['name'] for t in sqlSelect(f"PRAGMA table_info('{dbName}')").fetchall()]
+            if 'expire_time' not in columns:
+                sqlUpdate("ALTER TABLE '%s' ADD COLUMN expire_time DATETIME" % dbName)
+            if 'data_limit' not in columns:
+                sqlUpdate("ALTER TABLE '%s' ADD COLUMN data_limit FLOAT" % dbName)
         if f'{dbName}_restrict_access' not in existingTables:
             sqlUpdate(
                 """
                 CREATE TABLE '%s_restrict_access' (
-                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL, 
-                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL, 
-                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL, 
-                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL, 
-                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL, 
+                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL,
+                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL,
+                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL,
+                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL,
+                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL,
                     keepalive INT NULL, remote_endpoint VARCHAR NULL, preshared_key VARCHAR NULL,
+                    expire_time DATETIME NULL, data_limit FLOAT NULL,
                     PRIMARY KEY (id)
                 )
                 """ % dbName
             )
+        else:
+            columns = [t['name'] for t in sqlSelect(f"PRAGMA table_info('{dbName}_restrict_access')").fetchall()]
+            if 'expire_time' not in columns:
+                sqlUpdate("ALTER TABLE '%s_restrict_access' ADD COLUMN expire_time DATETIME" % dbName)
+            if 'data_limit' not in columns:
+                sqlUpdate("ALTER TABLE '%s_restrict_access' ADD COLUMN data_limit FLOAT" % dbName)
         if f'{dbName}_transfer' not in existingTables:
             sqlUpdate(
                 """
@@ -528,16 +542,23 @@ class WireguardConfiguration:
             sqlUpdate(
                 """
                 CREATE TABLE '%s_deleted' (
-                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL, 
-                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL, 
-                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL, 
-                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL, 
-                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL, 
+                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL,
+                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL,
+                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL,
+                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL,
+                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL,
                     keepalive INT NULL, remote_endpoint VARCHAR NULL, preshared_key VARCHAR NULL,
+                    expire_time DATETIME NULL, data_limit FLOAT NULL,
                     PRIMARY KEY (id)
                 )
                 """ % dbName
             )
+        else:
+            columns = [t['name'] for t in sqlSelect(f"PRAGMA table_info('{dbName}_deleted')").fetchall()]
+            if 'expire_time' not in columns:
+                sqlUpdate("ALTER TABLE '%s_deleted' ADD COLUMN expire_time DATETIME" % dbName)
+            if 'data_limit' not in columns:
+                sqlUpdate("ALTER TABLE '%s_deleted' ADD COLUMN data_limit FLOAT" % dbName)
             
     def __dumpDatabase(self):
         for line in sqldb.iterdump():
@@ -636,14 +657,16 @@ class WireguardConfiguration:
                                     "mtu": DashboardConfig.GetConfig("Peers", "peer_mtu")[1],
                                     "keepalive": DashboardConfig.GetConfig("Peers", "peer_keep_alive")[1],
                                     "remote_endpoint": DashboardConfig.GetConfig("Peers", "remote_endpoint")[1],
-                                    "preshared_key": i["PresharedKey"] if "PresharedKey" in i.keys() else ""
+                                    "preshared_key": i["PresharedKey"] if "PresharedKey" in i.keys() else "",
+                                    "expire_time": None,
+                                    "data_limit": 0
                                 }
                                 sqlUpdate(
                                     """
                                     INSERT INTO '%s'
-                                        VALUES (:id, :private_key, :DNS, :endpoint_allowed_ip, :name, :total_receive, :total_sent, 
-                                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent, 
-                                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key);
+                                        VALUES (:id, :private_key, :DNS, :endpoint_allowed_ip, :name, :total_receive, :total_sent,
+                                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent,
+                                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key, :expire_time, :data_limit);
                                     """ % self.Name
                                     , newPeer)
                                 self.Peers.append(Peer(newPeer, self))
@@ -687,14 +710,16 @@ class WireguardConfiguration:
                     "mtu": i['mtu'],
                     "keepalive": i['keepalive'],
                     "remote_endpoint": DashboardConfig.GetConfig("Peers", "remote_endpoint")[1],
-                    "preshared_key": i["preshared_key"]
+                    "preshared_key": i["preshared_key"],
+                    "expire_time": i.get("expire_time"),
+                    "data_limit": i.get("data_limit", 0)
                 }
                 sqlUpdate(
                     """
                     INSERT INTO '%s'
-                        VALUES (:id, :private_key, :DNS, :endpoint_allowed_ip, :name, :total_receive, :total_sent, 
-                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent, 
-                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key);
+                        VALUES (:id, :private_key, :DNS, :endpoint_allowed_ip, :name, :total_receive, :total_sent,
+                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent,
+                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key, :expire_time, :data_limit);
                     """ % self.Name
                     , newPeer)
             for p in peers:
@@ -1269,30 +1294,44 @@ class AmneziaWireguardConfiguration(WireguardConfiguration):
                 """
                 CREATE TABLE '%s'(
                     id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL, advanced_security VARCHAR NULL,
-                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL, 
-                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL, 
-                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL, 
-                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL, 
+                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL,
+                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL,
+                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL,
+                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL,
                     keepalive INT NULL, remote_endpoint VARCHAR NULL, preshared_key VARCHAR NULL,
+                    expire_time DATETIME NULL, data_limit FLOAT NULL,
                     PRIMARY KEY (id)
                 )
                 """ % dbName
             )
+        else:
+            columns = [t['name'] for t in sqlSelect(f"PRAGMA table_info('{dbName}')").fetchall()]
+            if 'expire_time' not in columns:
+                sqlUpdate("ALTER TABLE '%s' ADD COLUMN expire_time DATETIME" % dbName)
+            if 'data_limit' not in columns:
+                sqlUpdate("ALTER TABLE '%s' ADD COLUMN data_limit FLOAT" % dbName)
 
         if f'{dbName}_restrict_access' not in existingTables:
             sqlUpdate(
                 """
                 CREATE TABLE '%s_restrict_access' (
-                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL, advanced_security VARCHAR NULL, 
-                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL, 
-                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL, 
-                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL, 
-                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL, 
+                    id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL, advanced_security VARCHAR NULL,
+                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL,
+                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL,
+                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL,
+                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL,
                     keepalive INT NULL, remote_endpoint VARCHAR NULL, preshared_key VARCHAR NULL,
+                    expire_time DATETIME NULL, data_limit FLOAT NULL,
                     PRIMARY KEY (id)
                 )
                 """ % dbName
             )
+        else:
+            columns = [t['name'] for t in sqlSelect(f"PRAGMA table_info('{dbName}_restrict_access')").fetchall()]
+            if 'expire_time' not in columns:
+                sqlUpdate("ALTER TABLE '%s_restrict_access' ADD COLUMN expire_time DATETIME" % dbName)
+            if 'data_limit' not in columns:
+                sqlUpdate("ALTER TABLE '%s_restrict_access' ADD COLUMN data_limit FLOAT" % dbName)
         if f'{dbName}_transfer' not in existingTables:
             sqlUpdate(
                 """
@@ -1308,15 +1347,22 @@ class AmneziaWireguardConfiguration(WireguardConfiguration):
                 """
                 CREATE TABLE '%s_deleted' (
                     id VARCHAR NOT NULL, private_key VARCHAR NULL, DNS VARCHAR NULL, advanced_security VARCHAR NULL,
-                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL, 
-                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL, 
-                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL, 
-                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL, 
+                    endpoint_allowed_ip VARCHAR NULL, name VARCHAR NULL, total_receive FLOAT NULL,
+                    total_sent FLOAT NULL, total_data FLOAT NULL, endpoint VARCHAR NULL,
+                    status VARCHAR NULL, latest_handshake VARCHAR NULL, allowed_ip VARCHAR NULL,
+                    cumu_receive FLOAT NULL, cumu_sent FLOAT NULL, cumu_data FLOAT NULL, mtu INT NULL,
                     keepalive INT NULL, remote_endpoint VARCHAR NULL, preshared_key VARCHAR NULL,
+                    expire_time DATETIME NULL, data_limit FLOAT NULL,
                     PRIMARY KEY (id)
                 )
                 """ % dbName
             )
+        else:
+            columns = [t['name'] for t in sqlSelect(f"PRAGMA table_info('{dbName}_deleted')").fetchall()]
+            if 'expire_time' not in columns:
+                sqlUpdate("ALTER TABLE '%s_deleted' ADD COLUMN expire_time DATETIME" % dbName)
+            if 'data_limit' not in columns:
+                sqlUpdate("ALTER TABLE '%s_deleted' ADD COLUMN data_limit FLOAT" % dbName)
 
     def getPeers(self):
         if self.configurationFileChanged():
@@ -1372,14 +1418,16 @@ class AmneziaWireguardConfiguration(WireguardConfiguration):
                                     "mtu": DashboardConfig.GetConfig("Peers", "peer_mtu")[1],
                                     "keepalive": DashboardConfig.GetConfig("Peers", "peer_keep_alive")[1],
                                     "remote_endpoint": DashboardConfig.GetConfig("Peers", "remote_endpoint")[1],
-                                    "preshared_key": i["PresharedKey"] if "PresharedKey" in i.keys() else ""
+                                    "preshared_key": i["PresharedKey"] if "PresharedKey" in i.keys() else "",
+                                    "expire_time": None,
+                                    "data_limit": 0
                                 }
                                 sqlUpdate(
                                     """
                                     INSERT INTO '%s'
-                                        VALUES (:id, :private_key, :DNS, :advanced_security, :endpoint_allowed_ip, :name, :total_receive, :total_sent, 
-                                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent, 
-                                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key);
+                                        VALUES (:id, :private_key, :DNS, :advanced_security, :endpoint_allowed_ip, :name, :total_receive, :total_sent,
+                                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent,
+                                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key, :expire_time, :data_limit);
                                     """ % self.Name
                                     , newPeer)
                                 self.Peers.append(AmneziaWGPeer(newPeer, self))
@@ -1424,14 +1472,16 @@ class AmneziaWireguardConfiguration(WireguardConfiguration):
                     "keepalive": i['keepalive'],
                     "remote_endpoint": DashboardConfig.GetConfig("Peers", "remote_endpoint")[1],
                     "preshared_key": i["preshared_key"],
-                    "advanced_security": i['advanced_security']
+                    "advanced_security": i['advanced_security'],
+                    "expire_time": i.get("expire_time"),
+                    "data_limit": i.get("data_limit", 0)
                 }
                 sqlUpdate(
                     """
                     INSERT INTO '%s'
-                        VALUES (:id, :private_key, :DNS, :advanced_security, :endpoint_allowed_ip, :name, :total_receive, :total_sent, 
-                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent, 
-                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key);
+                        VALUES (:id, :private_key, :DNS, :advanced_security, :endpoint_allowed_ip, :name, :total_receive, :total_sent,
+                        :total_data, :endpoint, :status, :latest_handshake, :allowed_ip, :cumu_receive, :cumu_sent,
+                        :cumu_data, :mtu, :keepalive, :remote_endpoint, :preshared_key, :expire_time, :data_limit);
                     """ % self.Name
                     , newPeer)
             for p in peers:
@@ -1490,6 +1540,8 @@ class Peer:
         self.keepalive = tableData["keepalive"]
         self.remote_endpoint = tableData["remote_endpoint"]
         self.preshared_key = tableData["preshared_key"]
+        self.expire_time = tableData["expire_time"] if "expire_time" in tableData.keys() else None
+        self.data_limit = tableData["data_limit"] if "data_limit" in tableData.keys() else 0
         self.jobs: list[PeerJob] = []
         self.ShareLink: list[PeerShareLink] = []
         self.getJobs()
@@ -1629,8 +1681,38 @@ PersistentKeepalive = {str(self.keepalive)}
         except Exception as e:
             print(e)
             return False
-        
+
         return True
+
+    def updateLimit(self, expire_time: str | None, data_limit: float) -> ResponseObject:
+        try:
+            sqlUpdate("UPDATE '%s' SET expire_time = ?, data_limit = ? WHERE id = ?" % self.configuration.Name,
+                      (expire_time, data_limit, self.id))
+            self.expire_time = expire_time
+            self.data_limit = data_limit
+
+            data_job_id = f"{self.configuration.Name}_{self.id}_data_limit"
+            time_job_id = f"{self.configuration.Name}_{self.id}_time_limit"
+
+            if data_limit and data_limit > 0:
+                AllPeerJobs.saveJob(PeerJob(data_job_id, self.configuration.Name, self.id,
+                                            'total_data', 'lgt', str(data_limit), None, None, 'restrict'))
+            else:
+                existing = AllPeerJobs.searchJobById(data_job_id)
+                if len(existing) > 0:
+                    AllPeerJobs.deleteJob(existing[0])
+
+            if expire_time and len(str(expire_time)) > 0:
+                AllPeerJobs.saveJob(PeerJob(time_job_id, self.configuration.Name, self.id,
+                                            'expiry', 'lgt', expire_time, None, None, 'restrict'))
+            else:
+                existing = AllPeerJobs.searchJobById(time_job_id)
+                if len(existing) > 0:
+                    AllPeerJobs.deleteJob(existing[0])
+
+            return ResponseObject(True)
+        except Exception as e:
+            return ResponseObject(False, str(e))
     
 class AmneziaWGPeer(Peer):
     def __init__(self, tableData, configuration: AmneziaWireguardConfiguration):
@@ -2447,6 +2529,23 @@ def API_updatePeerSettings(configName):
             
     return ResponseObject(False, "Peer does not exist")
 
+@app.post(f'{APP_PREFIX}/api/updatePeerLimit/<configName>')
+def API_updatePeerLimit(configName):
+    data = request.get_json()
+    id = data.get('id')
+    if id and len(id) > 0 and configName in WireguardConfigurations.keys():
+        expire_time = data.get('expire_time')
+        data_limit = data.get('data_limit', 0)
+        wgc = WireguardConfigurations[configName]
+        foundPeer, peer = wgc.searchPeer(id)
+        if foundPeer:
+            try:
+                data_limit = float(data_limit) if data_limit is not None else 0
+            except Exception:
+                data_limit = 0
+            return peer.updateLimit(expire_time, data_limit)
+    return ResponseObject(False, "Peer does not exist")
+
 @app.post(f'{APP_PREFIX}/api/resetPeerData/<configName>')
 def API_resetPeerData(configName):
     data = request.get_json()
@@ -2573,7 +2672,9 @@ def API_addPeers(configName):
             dns_addresses: str = data.get('DNS', DashboardConfig.GetConfig("Peers", "peer_global_DNS")[1])
             mtu: int = data.get('mtu', int(DashboardConfig.GetConfig("Peers", "peer_MTU")[1]))
             keep_alive: int = data.get('keepalive', int(DashboardConfig.GetConfig("Peers", "peer_keep_alive")[1]))
-            preshared_key: str = data.get('preshared_key', "")            
+            preshared_key: str = data.get('preshared_key', "")
+            expire_time = data.get('expire_time')
+            data_limit = data.get('data_limit', 0)
     
             if type(mtu) is not int or mtu < 0 or mtu > 1460:
                 mtu = int(DashboardConfig.GetConfig("Peers", "peer_MTU")[1])
@@ -2613,7 +2714,9 @@ def API_addPeers(configName):
                             "endpoint_allowed_ip": endpoint_allowed_ip,
                             "mtu": mtu,
                             "keepalive": keep_alive,
-                            "advanced_security": "off"
+                            "advanced_security": "off",
+                            "expire_time": expire_time,
+                            "data_limit": data_limit
                         })
                         if addedCount == bulkAddAmount:
                             break
@@ -2683,7 +2786,9 @@ def API_addPeers(configName):
                         "DNS": dns_addresses,
                         "mtu": mtu,
                         "keepalive": keep_alive,
-                        "advanced_security": "off"
+                        "advanced_security": "off",
+                        "expire_time": expire_time,
+                        "data_limit": data_limit
                     }]
                 )
                 return ResponseObject(status=status, message=result['message'], data=result['peers'])
